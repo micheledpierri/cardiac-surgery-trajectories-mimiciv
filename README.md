@@ -13,25 +13,27 @@ Scripts read compressed CSV tables from the local MIMIC-IV `hosp/` and `icu/` di
 ## Structure
 
 ```text
-github_release/
+<repository>/
     README.md
+    .gitignore
     Scripts/
         01_identify_standard_cardiac_surgery_cohort.py
         ...
         27_cross_domain_observability.py
+        28_trajectory_transitions.py
 ```
 
-The release contains only this README and 27 Python scripts. Scripts read and generate local analytical files beneath `<repository>/data/` when run; generated data are not part of this release.
+The release contains this README, a protective `.gitignore`, and 28 Python scripts. Scripts read and generate local analytical files beneath `<repository>/data/` when run; generated data are not part of this release.
 
 ## Python dependencies
 
-Use Python supporting the script syntax (Python 3.10 or later). Actual third-party imports are `duckdb` for scripts 01-26 and `numpy`, `pandas`, and `scipy` for script 27. For example, install them in your chosen environment with:
+Use Python supporting the script syntax (Python 3.10 or later). Actual third-party imports are `duckdb` for scripts 01-26 and `numpy`, `pandas`, and `scipy` for script 27. Script 28 requires `numpy`, `pandas`, and `pyarrow` (the Parquet reader). For example, install them in your chosen environment with:
 
 ```sh
-python -m pip install duckdb numpy pandas scipy
+python -m pip install duckdb numpy pandas scipy pyarrow
 ```
 
-No tested package-version combination is asserted. Scientific scripts were not executed during release preparation.
+Scripts 01-27 were checked statically and were not rerun during this maintenance audit. Script 28 was regression-tested on the frozen local inputs with Python 3.12.4, NumPy 2.5.0, pandas 3.0.3, and PyArrow 24.0.0; all three CSVs matched the canonical results byte for byte. This is not a tested environment claim for the entire pipeline.
 
 ## Configuration
 
@@ -88,6 +90,7 @@ Independent extractors are listed in a stable order; each does not necessarily d
 | 25 | `25_build_favorable_recovery.py` | `02_05_build_favorable_recovery.py` |
 | 26 | `26_describe_favorable_recovery_trajectories.py` | `02_06_describe_favorable_recovery_trajectories.py` |
 | 27 | `27_cross_domain_observability.py` | `02_07_cross_domain_observability.py` |
+| 28 | `28_trajectory_transitions.py` | `03_08_trajectory_transitions.py` |
 
 Essential dependencies:
 
@@ -99,6 +102,7 @@ Essential dependencies:
 - 25 requires the cohort, creatinine outcomes (12), fluid trajectories (13), respiratory outcomes (17), revision-for-bleeding outcomes (19), and raw admissions. Complication inputs provide construct-validation context; they do not define favorable-recovery classification.
 - 26 requires favorable-recovery membership from 25, master datasets from 21, and six-hour sources from 11 and 20. Usual-care continuous and treatment summaries from 22 are optional comparison inputs: absence omits the corresponding comparison rows; absence of both produces an empty comparison table.
 - 27 requires both feature tables from 24 and the availability summary from 22.
+- 28 requires the frozen six-hour master from 21 and respiratory-support six-hour source from 14. It does not depend on 22-27 and does not access raw MIMIC-IV or rerun extraction.
 
 ## Input and output conventions
 
@@ -110,4 +114,51 @@ Windows use the validated postoperative time origin and observation endpoint. Th
 
 ## Scope limitations
 
-This release covers cohort construction, clinical extraction and descriptive trajectory analysis. It excludes the transfusion extractor and Group 03, S1, S2 and S3 scripts. It does not include final publication figure rendering, editorial table assembly, or every supplementary methodological check. It is not presented as independently reproducing all manuscript figures and tables. No data, generated results or license file are included.
+This release covers cohort construction, clinical extraction and descriptive trajectory analysis. It excludes the transfusion extractor, Group 03 components other than canonical 03_08 (release script 28), and S1, S2 and S3 scripts. It does not include final publication figure rendering, editorial table assembly, or every supplementary methodological check. It is not presented as independently reproducing all manuscript figures and tables. No data, generated results or license file are included.
+
+## Canonical support transitions (03_08 / release script 28)
+
+The scientific source is the validated `03_08_trajectory_transitions.py`, distributed
+as `Scripts/28_trajectory_transitions.py` to preserve sequential release numbering.
+Both frozen inputs must be in the selected project's `data/` directory:
+
+- `02_01_study1_six_hour.parquet`
+- `01_11_respiratory_support_six_hour.parquet`
+
+Run from the repository root:
+
+```sh
+python Scripts/28_trajectory_transitions.py --project "/path/to/authorized/project" --output-dir "/path/to/separate/validation-output"
+```
+
+`--project` defaults to the repository root. `--output-dir` defaults to
+`<project>/data`; relative option values resolve against the current working
+directory. Always select a separate output directory to validate without
+overwriting frozen canonical CSVs. Successful runs replace the three named files
+in the chosen output directory after validation, using staging and rollback:
+
+- `03_08_joint_transitions_wilson95.csv` (48 rows)
+- `03_08_support_sequences_wilson95.csv` (32 rows)
+- `03_08_directional_summary_wilson95.csv` (15 rows)
+
+V1 denotes documented invasive ventilation; V0 requires zero invasive fraction
+and positive classified respiratory time. Ineligible windows, missing fractions,
+and eligible windows with no classified respiratory time remain missing. Partial
+coverage is retained. Vasoactive state uses the canonical exposure flag with its
+existing missingness. Adjacent joint transitions require both support states in
+both windows; four-window sequences require complete states for each domain.
+Directional ventilation changes apply the same respiratory observability mask.
+Estimates use the canonical Wilson 95% score intervals and three-decimal output.
+
+Blocking checks preserve the validated cohort (9,305 stays), 257 eligible windows
+without classified respiratory time, paired denominators 9,287 / 9,193 / 9,027,
+and complete respiratory/vasoactive sequence denominators 9,018 / 9,237. Internal
+legacy-definition checks are retained solely as regression safeguards; they do
+not produce an alternative published analysis. These cohort-specific checks may
+reject a different dataset and must not be disabled to claim replication.
+
+Frozen inputs are restricted derived MIMIC-IV data and must be produced or
+accessed under the applicable PhysioNet agreement. Do not commit raw data,
+patient-level extracts, Parquet files, or confidential materials. `.gitignore`
+excludes common data and result formats; it cannot replace review of every file
+before publication.

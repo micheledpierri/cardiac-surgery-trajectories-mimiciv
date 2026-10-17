@@ -1,0 +1,30 @@
+# Restricted data and generated study outputs
+/data/
+/audit/
+/ground_truth/
+/tables/
+/figures/
+/figures_study1/
+*.parquet
+*.csv
+*.tsv
+*.csv.gz
+*.tsv.gz
+*.zip
+*.duckdb
+*.duckdb.wal
+*.db
+*.sqlite
+*.sqlite3
+
+# Local environments, credentials and transient Python files
+.env
+.env.*
+.venv/
+venv/
+env/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ipynb_checkpoints/
+.03_08_stage_*/
